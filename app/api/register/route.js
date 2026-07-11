@@ -1,13 +1,11 @@
-import clientPromise from "@/lib/mongodb";
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
+import { createUser } from "@/models/User";
 
 export async function POST(request) {
   try {
     const body = await request.json();
     const { name, email, phone, password, role, companyName, designation, businessEmail } = body;
 
-    // Basic validation
     if (!name || !email || !phone || !password || !role) {
       return NextResponse.json({ error: "All fields are required" }, { status: 400 });
     }
@@ -19,44 +17,17 @@ export async function POST(request) {
       );
     }
 
-    const client = await clientPromise;
-    const db = client.db("hireloop");
-    const users = db.collection("users");
-
-    // Check if email already exists
-    const existingUser = await users.findOne({ email });
-    if (existingUser) {
-      return NextResponse.json({ error: "Email already registered" }, { status: 409 });
-    }
-
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Build user document
-    const newUser = {
-      name,
-      email,
-      phone,
-      password: hashedPassword,
-      role, // "candidate" or "recruiter"
-      createdAt: new Date(),
-    };
-
-    if (role === "recruiter") {
-      newUser.companyName = companyName;
-      newUser.designation = designation;
-      newUser.businessEmail = businessEmail;
-      newUser.isApproved = false; // Admin must approve recruiters
-    }
-
-    const result = await users.insertOne(newUser);
+    const userId = await createUser({ name, email, phone, password, role, companyName, designation, businessEmail });
 
     return NextResponse.json(
-      { success: true, message: "Registration successful", userId: result.insertedId },
+      { success: true, message: "Registration successful", userId },
       { status: 201 }
     );
   } catch (error) {
     console.error("Registration error:", error);
+    if (error.message === "Email already registered") {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

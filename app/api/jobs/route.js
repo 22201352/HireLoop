@@ -1,5 +1,5 @@
-import clientPromise from "@/lib/mongodb";
 import { NextResponse } from "next/server";
+import { createJob, getJobs } from "@/models/Job";
 
 // Create a new job posting
 export async function POST(request) {
@@ -23,31 +23,22 @@ export async function POST(request) {
       return NextResponse.json({ error: "All required fields must be filled" }, { status: 400 });
     }
 
-    const client = await clientPromise;
-    const db = client.db("hireloop");
-    const jobs = db.collection("jobs");
-
-    const newJob = {
+    const jobId = await createJob({
       recruiterId,
       recruiterName,
       companyName,
       title,
       description,
-      skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
+      skills,
       experienceLevel,
-      salaryMin: Number(salaryMin) || 0,
-      salaryMax: Number(salaryMax) || 0,
+      salaryMin,
+      salaryMax,
       employmentType,
-      applicationDeadline: applicationDeadline ? new Date(applicationDeadline) : null,
-      status: "pending", // pending | approved | rejected
-      isOpen: true, // for later job toggle feature
-      createdAt: new Date(),
-    };
-
-    const result = await jobs.insertOne(newJob);
+      applicationDeadline,
+    });
 
     return NextResponse.json(
-      { success: true, message: "Job submitted for approval", jobId: result.insertedId },
+      { success: true, message: "Job submitted for approval", jobId },
       { status: 201 }
     );
   } catch (error) {
@@ -63,17 +54,9 @@ export async function GET(request) {
     const recruiterId = searchParams.get("recruiterId");
     const status = searchParams.get("status");
 
-    const client = await clientPromise;
-    const db = client.db("hireloop");
-    const jobs = db.collection("jobs");
+    const jobs = await getJobs({ recruiterId, status });
 
-    const query = {};
-    if (recruiterId) query.recruiterId = recruiterId;
-    if (status) query.status = status;
-
-    const result = await jobs.find(query).sort({ createdAt: -1 }).toArray();
-
-    return NextResponse.json({ success: true, jobs: result }, { status: 200 });
+    return NextResponse.json({ success: true, jobs }, { status: 200 });
   } catch (error) {
     console.error("Fetch jobs error:", error);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });

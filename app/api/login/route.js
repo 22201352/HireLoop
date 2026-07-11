@@ -1,6 +1,5 @@
-import clientPromise from "@/lib/mongodb";
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
+import { findUserByEmail, verifyPassword } from "@/models/User";
 
 export async function POST(request) {
   try {
@@ -10,23 +9,18 @@ export async function POST(request) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
-    const client = await clientPromise;
-    const db = client.db("hireloop");
-    const users = db.collection("users");
-
-    const user = await users.findOne({ email });
+    const user = await findUserByEmail(email);
 
     if (!user) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    const passwordMatch = await bcrypt.compare(password, user.password);
+    const passwordMatch = await verifyPassword(password, user.password);
 
     if (!passwordMatch) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    // Block unapproved recruiters from logging in
     if (user.role === "recruiter" && user.isApproved === false) {
       return NextResponse.json(
         { error: "Your recruiter account is pending admin approval" },
@@ -34,7 +28,6 @@ export async function POST(request) {
       );
     }
 
-    // Don't send password back to client
     const { password: _, ...safeUser } = user;
 
     return NextResponse.json(

@@ -1,6 +1,5 @@
-import clientPromise from "@/lib/mongodb";
 import { NextResponse } from "next/server";
-import { ObjectId } from "mongodb";
+import { toggleJobStatus } from "@/models/Job";
 
 export async function POST(request) {
   try {
@@ -10,14 +9,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "Missing jobId or isOpen" }, { status: 400 });
     }
 
-    const client = await clientPromise;
-    const db = client.db("hireloop");
-    const jobs = db.collection("jobs");
-
-    await jobs.updateOne(
-      { _id: new ObjectId(jobId) },
-      { $set: { isOpen } }
-    );
+    await toggleJobStatus(jobId, isOpen);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
