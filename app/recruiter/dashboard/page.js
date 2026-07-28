@@ -151,7 +151,7 @@ export default function RecruiterDashboard() {
                         </p>
                       )}
                     </div>
-                    <div className="text-end">
+<div className="text-end">
                       <div className="mb-2">{statusBadge(job.status)}</div>
                       {job.status === 'approved' && (
                         <button
@@ -172,6 +172,13 @@ export default function RecruiterDashboard() {
                             <>⚪ Closed</>
                           )}
                         </button>
+                      )}
+                      {job.status === 'approved' && (
+                        <div className="mt-2">
+                          <Link href={`/recruiter/jobs/${job._id}/applicants`} className="btn btn-sm btn-outline-primary">
+                            View Applicants
+                          </Link>
+                        </div>
                       )}
                     </div>
                   </div>

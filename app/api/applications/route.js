@@ -60,21 +60,27 @@ export async function POST(request) {
   }
 }
 
-// Get all applications for a candidate (Feature #11)
+// All applications for a candidate
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const candidateId = searchParams.get("candidateId");
 
     if (!candidateId) {
-      return NextResponse.json({ error: "candidateId is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "candidateId is required" }, 
+        { status: 400 });
     }
 
     const applications = await getApplicationsByCandidateId(candidateId);
 
-    return NextResponse.json({ success: true, applications }, { status: 200 });
+    return NextResponse.json(
+      { success: true, applications }, 
+      { status: 200 });
   } catch (error) {
     console.error("Fetch applications error:", error);
-    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Something went wrong" }, 
+      { status: 500 });
   }
 }

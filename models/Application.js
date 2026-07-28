@@ -84,6 +84,27 @@ export async function getApplicationsByCandidateId(candidateId) {
   return applications.find({ candidateId }).sort({ submittedAt: -1 }).toArray();
 }
 
+export async function getApplicationsWithJobDetails(candidateId) {
+  const applications = await getCollection();
+
+  const results = await applications.aggregate([
+    { $match: { candidateId } },
+    {
+      $lookup: {
+        from: "jobs",
+        let: { jobIdStr: "$jobId" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$_id", { $toObjectId: "$$jobIdStr" }] } } }
+        ],
+        as: "jobDetails",
+      },
+    },
+    { $sort: { submittedAt: -1 } },
+  ]).toArray();
+
+  return results;
+}
+
 export async function getApplicationsByJobId(jobId) {
   const applications = await getCollection();
   return applications.find({ jobId }).sort({ aiScore: -1 }).toArray();
@@ -91,12 +112,12 @@ export async function getApplicationsByJobId(jobId) {
 
 export async function updateApplicationStatus(applicationId, newStatus) {
   const applications = await getCollection();
-  const application = await applications.findOne({ _id: new ObjectId(applicationId) });
 
-  await applications.updateOne(
+  const result = await applications.findOneAndUpdate(
     { _id: new ObjectId(applicationId) },
-    { $set: { status: newStatus, statusUpdatedAt: new Date() } }
+    { $set: { status: newStatus, statusUpdatedAt: new Date() } },
+    { returnDocument: "after" }
   );
 
-  return application;
+  return result;
 }
