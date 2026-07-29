@@ -15,6 +15,14 @@ export async function POST(request) {
       );
     }
 
+    const existingInterview = await getInterviewByApplicationId(applicationId);
+    if (existingInterview) {
+      return NextResponse.json(
+        { error: "An interview has already been proposed for this application" },
+        { status: 409 }
+      );
+    }
+
     const interviewId = await proposeInterview({
       applicationId,
       candidateId,
