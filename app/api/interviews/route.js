@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { proposeInterview, getInterviewsByCandidateId, getInterviewByApplicationId } from "@/models/Interview";
+import { proposeInterview, getActiveInterviewsByCandidateId, getInterviewByApplicationId } from "@/models/Interview";
 import { sendInterviewProposedEmail } from "@/lib/email";
 import myDatabaseConnection from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
@@ -84,7 +84,7 @@ export async function GET(request) {
       );
     }
 
-    const interviews = await getInterviewsByCandidateId(candidateId);
+    const interviews = await getActiveInterviewsByCandidateId(candidateId);
 
     return NextResponse.json(
       { success: true, interviews },

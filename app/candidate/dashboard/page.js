@@ -15,6 +15,13 @@ export default function CandidateDashboard() {
   const [interviews, setInterviews] = useState([]);
   const [confirmingId, setConfirmingId] = useState(null);
 
+  const [recommendedJobs, setRecommendedJobs] = useState([]);
+  const [loadingRecommended, setLoadingRecommended] = useState(true);
+  const [selectedRecommendedJob, setSelectedRecommendedJob] = useState(null);
+  const [recommendedApplyResult, setRecommendedApplyResult] = useState(null);
+  const [recommendedApplyError, setRecommendedApplyError] = useState('');
+  const [applyingRecommendedJob, setApplyingRecommendedJob] = useState(false);
+
   useEffect(() => {
     const storedUser = localStorage.getItem('hireloop_user');
 
@@ -57,6 +64,60 @@ export default function CandidateDashboard() {
   useEffect(() => {
     if (!user) return;
 
+    const refreshInterviews = async () => {
+      try {
+        const res = await fetch(`/api/interviews?candidateId=${user._id}`);
+        const data = await res.json();
+
+        if (res.ok) {
+          setInterviews(data.interviews);
+        }
+      } catch (err) {
+        console.error('Failed to refresh interviews:', err);
+      }
+    };
+
+    window.addEventListener('focus', refreshInterviews);
+    window.addEventListener('pageshow', refreshInterviews);
+    document.addEventListener('visibilitychange', refreshInterviews);
+
+    return () => {
+      window.removeEventListener('focus', refreshInterviews);
+      window.removeEventListener('pageshow', refreshInterviews);
+      document.removeEventListener('visibilitychange', refreshInterviews);
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const refreshApplications = async () => {
+      try {
+        const res = await fetch(`/api/applications?candidateId=${user._id}`);
+        const data = await res.json();
+
+        if (res.ok) {
+          setApplications(data.applications);
+        }
+      } catch (err) {
+        console.error('Failed to refresh applications:', err);
+      }
+    };
+
+    window.addEventListener('focus', refreshApplications);
+    window.addEventListener('pageshow', refreshApplications);
+    document.addEventListener('visibilitychange', refreshApplications);
+
+    return () => {
+      window.removeEventListener('focus', refreshApplications);
+      window.removeEventListener('pageshow', refreshApplications);
+      document.removeEventListener('visibilitychange', refreshApplications);
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
     const fetchInterviews = async () => {
       try {
         const res = await fetch(`/api/interviews?candidateId=${user._id}`);
@@ -71,6 +132,27 @@ export default function CandidateDashboard() {
     };
 
     fetchInterviews();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchRecommended = async () => {
+      try {
+        const res = await fetch(`/api/jobs/recommended?candidateId=${user._id}`);
+        const data = await res.json();
+
+        if (res.ok) {
+          setRecommendedJobs(data.jobs);
+        }
+      } catch (err) {
+        console.error('Failed to fetch recommended jobs:', err);
+      } finally {
+        setLoadingRecommended(false);
+      }
+    };
+
+    fetchRecommended();
   }, [user]);
 
   const totalApplications = applications.length;
@@ -89,7 +171,62 @@ export default function CandidateDashboard() {
     router.push('/');
   };
 
-const handleConfirmSlot = async (interviewId, selectedSlot) => {
+  const openRecommendedJob = (job) => {
+    setSelectedRecommendedJob(job);
+    setRecommendedApplyResult(null);
+    setRecommendedApplyError('');
+  };
+
+  const closeRecommendedJob = () => {
+    setSelectedRecommendedJob(null);
+    setRecommendedApplyResult(null);
+    setRecommendedApplyError('');
+  };
+
+  const applyToRecommendedJob = async () => {
+    if (!selectedRecommendedJob || applyingRecommendedJob) return;
+
+    setApplyingRecommendedJob(true);
+    setRecommendedApplyError('');
+
+    try {
+      const res = await fetch('/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidateId: user._id,
+          candidateName: user.name,
+          jobId: String(selectedRecommendedJob._id),
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setRecommendedApplyError(data.error || 'Failed to apply');
+        return;
+      }
+
+      setApplications((prev) => [
+        {
+          _id: data.applicationId,
+          jobId: String(selectedRecommendedJob._id),
+          jobTitle: selectedRecommendedJob.title,
+          companyName: selectedRecommendedJob.companyName,
+          status: 'pending',
+          aiScore: data.aiScore,
+          aiJustification: data.aiJustification,
+        },
+        ...prev,
+      ]);
+      setRecommendedApplyResult(data);
+    } catch (err) {
+      setRecommendedApplyError('Something went wrong. Try again.');
+    } finally {
+      setApplyingRecommendedJob(false);
+    }
+  };
+
+  const handleConfirmSlot = async (interviewId, selectedSlot) => {
     const confirmed = window.confirm(
       `Confirm interview for ${new Date(selectedSlot).toLocaleString()}?`
     );
@@ -104,7 +241,7 @@ const handleConfirmSlot = async (interviewId, selectedSlot) => {
         body: JSON.stringify({ selectedSlot }),
       });
 
-if (res.ok) {
+      if (res.ok) {
         setInterviews((prev) =>
           prev.map((iv) =>
             iv._id === interviewId
@@ -258,12 +395,43 @@ if (res.ok) {
                 </Link>
               </div>
             </div>
-            
+
             <div className="card shadow-sm mt-4">
               <div className="card-body text-center py-4">
                 <Link href="/candidate/resume" className="btn btn-outline-primary">
                   View / Update Resume
                 </Link>
+              </div>
+            </div>
+
+            <div className="card shadow-sm mt-4">
+              <div className="card-header bg-white fw-bold">Recommended For You</div>
+              <div className="card-body p-0">
+                {loadingRecommended ? (
+                  <p className="text-muted text-center py-4">Finding jobs that match your skills...</p>
+                ) : recommendedJobs.length === 0 ? (
+                  <div className="text-center text-muted py-4">
+                    No recommendations yet. Add skills to your profile to get matched with jobs.
+                  </div>
+                ) : (
+                  <ul className="list-group list-group-flush">
+                    {recommendedJobs.map((job) => (
+                      <li key={job._id} className="list-group-item p-0">
+                        <button
+                          type="button"
+                          onClick={() => openRecommendedJob(job)}
+                          className="btn btn-link d-flex justify-content-between align-items-center text-decoration-none text-reset p-3 w-100 text-start"
+                        >
+                          <div>
+                            <div className="fw-bold">{job.title}</div>
+                            <small className="text-muted">{job.companyName}</small>
+                          </div>
+                          <span className="badge bg-primary">{job.matchCount} skill match{job.matchCount !== 1 ? 'es' : ''}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
 
@@ -299,6 +467,121 @@ if (res.ok) {
         )}
 
       </div>
+
+      {selectedRecommendedJob && (
+        <div
+          className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+          style={{ background: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
+        >
+          <div className="card shadow-lg p-4" style={{ maxWidth: '620px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }}>
+            {!recommendedApplyResult ? (
+              <>
+                <h5 className="fw-bold mb-1">{selectedRecommendedJob.title}</h5>
+                <p className="text-muted mb-3">{selectedRecommendedJob.companyName}</p>
+
+                <div className="row g-2 mb-3">
+                  <div className="col-sm-6">
+                    <div className="border rounded p-2 h-100">
+                      <small className="text-muted d-block">Employment Type</small>
+                      <strong>{selectedRecommendedJob.employmentType || 'Not specified'}</strong>
+                    </div>
+                  </div>
+                  <div className="col-sm-6">
+                    <div className="border rounded p-2 h-100">
+                      <small className="text-muted d-block">Experience Level</small>
+                      <strong>{selectedRecommendedJob.experienceLevel || 'Not specified'}</strong>
+                    </div>
+                  </div>
+                  <div className="col-sm-6">
+                    <div className="border rounded p-2 h-100">
+                      <small className="text-muted d-block">Salary Range</small>
+                      <strong>
+                        ৳{selectedRecommendedJob.salaryMin?.toLocaleString() || '0'} - ৳{selectedRecommendedJob.salaryMax?.toLocaleString() || '0'}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="col-sm-6">
+                    <div className="border rounded p-2 h-100">
+                      <small className="text-muted d-block">Application Deadline</small>
+                      <strong>
+                        {selectedRecommendedJob.applicationDeadline
+                          ? new Date(selectedRecommendedJob.applicationDeadline).toLocaleDateString()
+                          : 'Not specified'}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                <h6 className="fw-bold">Job Description</h6>
+                <p className="text-muted" style={{ whiteSpace: 'pre-wrap' }}>
+                  {selectedRecommendedJob.description || 'No description provided.'}
+                </p>
+
+                <h6 className="fw-bold">Required Skills</h6>
+                <div className="mb-3">
+                  {selectedRecommendedJob.skills?.length ? (
+                    selectedRecommendedJob.skills.map((skill, index) => (
+                      <span key={index} className="badge bg-light text-dark border me-1 mb-1">
+                        {skill}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-muted">No skills specified.</span>
+                  )}
+                </div>
+
+                <div className="alert alert-primary">
+                  <strong>{selectedRecommendedJob.matchCount}</strong> matching skill{selectedRecommendedJob.matchCount !== 1 ? 's' : ''}
+                </div>
+
+                {recommendedApplyError && (
+                  <div className="alert alert-danger">{recommendedApplyError}</div>
+                )}
+
+                <div className="d-flex justify-content-end gap-2">
+                  <button className="btn btn-outline-secondary" onClick={closeRecommendedJob}>
+                    Close
+                  </button>
+                  {applications.some(
+                    (application) =>
+                      String(application.jobId) === String(selectedRecommendedJob._id) &&
+                      application.status !== 'cancelled'
+                  ) ? (
+                    <button className="btn btn-success" disabled>
+                      Already Applied
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-primary"
+                      onClick={applyToRecommendedJob}
+                      disabled={applyingRecommendedJob}
+                    >
+                      {applyingRecommendedJob ? 'Submitting & Scoring...' : 'Apply'}
+                    </button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <h5 className="fw-bold mb-3">Application Submitted!</h5>
+                <div className="text-center mb-3">
+                  <div
+                    className="d-inline-flex align-items-center justify-content-center rounded-circle bg-success-subtle text-success fw-bold mb-2"
+                    style={{ width: '80px', height: '80px', fontSize: '1.5rem' }}
+                  >
+                    {recommendedApplyResult.aiScore}%
+                  </div>
+                  <p className="text-muted small mb-0">Skill Match Score</p>
+                </div>
+                <p className="text-center">{recommendedApplyResult.aiJustification}</p>
+                <button className="btn btn-primary w-100 mt-2" onClick={closeRecommendedJob}>
+                  Done
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

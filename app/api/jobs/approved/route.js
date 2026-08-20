@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { searchApprovedJobs } from "@/models/Job";
+import { searchApprovedJobs, getSkillMatchScore } from "@/models/Job";
+import { getResumeByCandidateId } from "@/models/Resume";
 
 export async function GET(request) {
   try {
@@ -10,6 +11,7 @@ export async function GET(request) {
     const skill = searchParams.get("skill");
     const minSalary = searchParams.get("minSalary");
     const sortBy = searchParams.get("sortBy") || "newest";
+    const candidateId = searchParams.get("candidateId");
 
     const jobs = await searchApprovedJobs({
       keyword,
@@ -19,6 +21,17 @@ export async function GET(request) {
       minSalary,
       sortBy,
     });
+
+    if (candidateId) {
+      const resume = await getResumeByCandidateId(candidateId);
+      return NextResponse.json({
+        success: true,
+        jobs: jobs.map((job) => ({
+          ...job,
+          skillMatchScore: getSkillMatchScore(job.skills, resume?.parsedText),
+        })),
+      }, { status: 200 });
+    }
 
     return NextResponse.json({ success: true, jobs }, { status: 200 });
   } catch (error) {

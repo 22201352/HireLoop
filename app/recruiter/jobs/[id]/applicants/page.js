@@ -177,7 +177,7 @@ export default function JobApplicants() {
                     <tr>
                       <th>Candidate</th>
                       <th>Email</th>
-                      <th>AI Score</th>
+                      <th>Skill Match Score</th>
                       <th>Resume</th>
                       <th>Justification</th>
                       <th>Status</th>
@@ -201,19 +201,23 @@ export default function JobApplicants() {
                         </td>
                         <td className="small text-muted">{app.aiJustification}</td>
                         <td>
-                          <select
-                            className="form-select"
-                            style={{ minWidth: '140px' }}
-                            value={app.status}
-                            disabled={updatingId === app._id}
-                            onChange={(e) => handleStatusChange(app._id, e.target.value)}
-                          >
-                            {STATUS_OPTIONS.map((s) => (
-                              <option key={s} value={s}>
-                                {s.charAt(0).toUpperCase() + s.slice(1)}
-                              </option>
-                            ))}
-                          </select>
+                          {app.status === 'cancelled' ? (
+                            <span className="badge bg-secondary">Cancelled by candidate</span>
+                          ) : (
+                            <select
+                              className="form-select"
+                              style={{ minWidth: '140px' }}
+                              value={app.status}
+                              disabled={updatingId === app._id}
+                              onChange={(e) => handleStatusChange(app._id, e.target.value)}
+                            >
+                              {STATUS_OPTIONS.map((s) => (
+                                <option key={s} value={s}>
+                                  {s.charAt(0).toUpperCase() + s.slice(1)}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </td>
                         <td>
                           {app.status === 'shortlisted' && (

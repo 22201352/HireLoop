@@ -82,6 +82,23 @@ export async function toggleJobStatus(jobId, isOpen) {
   );
 }
 
+export function getMatchedSkills(jobSkills, resumeText) {
+  const normalizedText = String(resumeText || '').toLowerCase();
+  const skills = Array.isArray(jobSkills) ? jobSkills : [];
+
+  return skills.filter((skill) => {
+    const cleanSkill = String(skill).trim().toLowerCase();
+    return cleanSkill.length > 1 && normalizedText.includes(cleanSkill);
+  });
+}
+
+export function getSkillMatchScore(jobSkills, resumeText) {
+  const skills = Array.isArray(jobSkills) ? jobSkills : [];
+  if (skills.length === 0) return 0;
+
+  return Math.round((getMatchedSkills(skills, resumeText).length / skills.length) * 100);
+}
+
 export async function searchApprovedJobs({ keyword, employmentType, experienceLevel, skill, minSalary, sortBy }) {
   const jobs = await getCollection();
 
@@ -106,4 +123,26 @@ export async function searchApprovedJobs({ keyword, employmentType, experienceLe
   const sortOption = sortBy === "oldest" ? { createdAt: 1 } : { createdAt: -1 };
 
   return jobs.find(query).sort(sortOption).toArray();
+}
+
+export async function getRecommendedJobs(resumeText, limit = 10) {
+  const jobs = await getCollection();
+
+  if (!resumeText) return [];
+
+  const approvedJobs = await jobs
+    .find({ status: "approved", isOpen: true })
+    .toArray();
+
+  const scored = approvedJobs.map((job) => {
+    const jobSkills = Array.isArray(job.skills) ? job.skills : [];
+    const matchedSkills = getMatchedSkills(jobSkills, resumeText);
+
+    return { ...job, matchedSkills, matchCount: matchedSkills.length };
+  });
+
+  return scored
+    .filter((job) => job.matchCount > 0)
+    .sort((a, b) => b.matchCount - a.matchCount)
+    .slice(0, limit);
 }

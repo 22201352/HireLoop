@@ -1,6 +1,7 @@
 import clientPromise from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 import groq from "@/lib/groq";
+import { getSkillMatchScore } from "@/models/Job";
 
 async function getCollection() {
   const client = await clientPromise;
@@ -11,12 +12,18 @@ async function getCollection() {
 // Check if candidate already applied to this job
 export async function hasApplied(candidateId, jobId) {
   const applications = await getCollection();
-  const existing = await applications.findOne({ candidateId, jobId });
+  const existing = await applications.findOne({
+    candidateId,
+    jobId,
+    status: { $ne: "cancelled" },
+  });
   return !!existing;
 }
 
 // Run AI Resume Scoring using Groq (Feature #6)
-async function getAIScore(jobDescription, resumeText) {
+async function getAIScore(jobDescription, resumeText, jobSkills) {
+  const skillMatchScore = getSkillMatchScore(jobSkills, resumeText);
+
   try {
     const prompt = `You are a recruitment assistant. Compare the candidate's resume text to the job description below.
 
@@ -41,17 +48,20 @@ Return ONLY a valid JSON object with this exact format, no other text:
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
 
     return {
-      score: Math.min(100, Math.max(0, Number(parsed.score) || 0)),
+      score: skillMatchScore,
       justification: parsed.justification || "No justification provided.",
     };
   } catch (error) {
     console.error("AI scoring error:", error);
-    return { score: 0, justification: "AI scoring unavailable at this time." };
+    return {
+      score: skillMatchScore,
+      justification: "Match score based on required skills found in your resume.",
+    };
   }
 }
 
 // Create a new application (Feature #5) + trigger AI scoring (Feature #6)
-export async function createApplication({ candidateId, candidateName, jobId, jobTitle, companyName, recruiterId, jobDescription, resumeText, resumeUrl }) {
+export async function createApplication({ candidateId, candidateName, jobId, jobTitle, companyName, recruiterId, jobDescription, jobSkills, resumeText, resumeUrl }) {
   const applications = await getCollection();
 
   const alreadyApplied = await hasApplied(candidateId, jobId);
@@ -59,7 +69,7 @@ export async function createApplication({ candidateId, candidateName, jobId, job
     throw new Error("You have already applied to this job");
   }
 
-  const aiResult = await getAIScore(jobDescription, resumeText);
+  const aiResult = await getAIScore(jobDescription, resumeText, jobSkills);
 
   const newApplication = {
     candidateId,
@@ -81,14 +91,31 @@ export async function createApplication({ candidateId, candidateName, jobId, job
 
 export async function getApplicationsByCandidateId(candidateId) {
   const applications = await getCollection();
-  return applications.find({ candidateId }).sort({ submittedAt: -1 }).toArray();
+  return applications
+    .find({
+      candidateId,
+      $or: [
+        { status: { $ne: "cancelled" } },
+        { cancellationAfterApproval: true },
+      ],
+    })
+    .sort({ submittedAt: -1 })
+    .toArray();
 }
 
 export async function getApplicationsWithJobDetails(candidateId) {
   const applications = await getCollection();
 
   const results = await applications.aggregate([
-    { $match: { candidateId } },
+    {
+      $match: {
+        candidateId,
+        $or: [
+          { status: { $ne: "cancelled" } },
+          { cancellationAfterApproval: true },
+        ],
+      },
+    },
     {
       $lookup: {
         from: "jobs",
@@ -107,7 +134,34 @@ export async function getApplicationsWithJobDetails(candidateId) {
 
 export async function getApplicationsByJobId(jobId) {
   const applications = await getCollection();
-  return applications.find({ jobId }).sort({ aiScore: -1 }).toArray();
+  return applications
+    .find({
+      jobId,
+      $or: [
+        { status: { $ne: "cancelled" } },
+        { cancellationAfterApproval: true },
+      ],
+    })
+    .sort({ aiScore: -1 })
+    .toArray();
+}
+
+export async function updateApplicationSkillScore(applicationId, jobSkills, resumeText) {
+  const applications = await getCollection();
+  const score = getSkillMatchScore(jobSkills, resumeText);
+
+  const result = await applications.findOneAndUpdate(
+    { _id: new ObjectId(applicationId) },
+    {
+      $set: {
+        aiScore: score,
+        aiJustification: "Match score based on required skills found in the candidate's resume.",
+      },
+    },
+    { returnDocument: "after" }
+  );
+
+  return result;
 }
 
 export async function updateApplicationStatus(applicationId, newStatus) {
@@ -120,4 +174,32 @@ export async function updateApplicationStatus(applicationId, newStatus) {
   );
 
   return result;
+}
+
+export async function cancelApplication(applicationId, candidateId) {
+  const applications = await getCollection();
+
+  const application = await applications.findOne({
+    _id: new ObjectId(applicationId),
+    candidateId,
+    status: { $in: ["pending", "reviewed", "shortlisted"] },
+  });
+
+  if (!application) return null;
+
+  if (application.status === "shortlisted") {
+    return applications.findOneAndUpdate(
+      { _id: application._id },
+      {
+        $set: {
+          status: "cancelled",
+          cancelledAt: new Date(),
+          cancellationAfterApproval: true,
+        },
+      },
+      { returnDocument: "after" }
+    );
+  }
+
+  return applications.findOneAndDelete({ _id: application._id });
 }

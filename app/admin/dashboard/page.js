@@ -13,6 +13,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('recruiters');
   const [noteModal, setNoteModal] = useState(null);
   const [noteText, setNoteText] = useState('');
+  const [recruiterNoteModal, setRecruiterNoteModal] = useState(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('hireloop_user');
@@ -58,15 +59,29 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleRecruiterAction = async (userId, action) => {
+  const openRecruiterNoteModal = (userId, action) => {
+    setRecruiterNoteModal({ userId, action });
+    setNoteText('');
+  };
+
+  const closeRecruiterNoteModal = () => {
+    setRecruiterNoteModal(null);
+    setNoteText('');
+  };
+
+  const confirmRecruiterAction = async () => {
+    if (!recruiterNoteModal) return;
+    const { userId, action } = recruiterNoteModal;
     setActionLoading(userId);
     try {
-      await fetch('/api/admin/approve-recruiter', {
+      const res = await fetch('/api/admin/approve-recruiter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, action }),
+        body: JSON.stringify({ userId, action, note: noteText }),
       });
+      if (!res.ok) return;
       await fetchRecruiters();
+      closeRecruiterNoteModal();
     } catch (err) {
       console.error(err);
     } finally {
@@ -218,14 +233,14 @@ export default function AdminDashboard() {
                           <button
                             className="btn btn-success btn-sm me-2"
                             disabled={actionLoading === r._id}
-                            onClick={() => handleRecruiterAction(r._id, 'approve')}
+                            onClick={() => openRecruiterNoteModal(r._id, 'approve')}
                           >
                             Approve
                           </button>
                           <button
                             className="btn btn-danger btn-sm"
                             disabled={actionLoading === r._id}
-                            onClick={() => handleRecruiterAction(r._id, 'reject')}
+                            onClick={() => openRecruiterNoteModal(r._id, 'reject')}
                           >
                             Reject
                           </button>
@@ -326,6 +341,45 @@ export default function AdminDashboard() {
                 {actionLoading === noteModal.jobId
                   ? 'Processing...'
                   : noteModal.action === 'approve'
+                  ? 'Confirm Approve'
+                  : 'Confirm Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {recruiterNoteModal && (
+        <div
+          className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
+          style={{ background: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
+        >
+          <div className="card shadow-lg p-4" style={{ maxWidth: '450px', width: '90%' }}>
+            <h5 className="fw-bold mb-3">
+              {recruiterNoteModal.action === 'approve'
+                ? 'Approve Recruiter Account'
+                : 'Reject Recruiter Account'}
+            </h5>
+            <label className="form-label">Note (optional)</label>
+            <textarea
+              className="form-control mb-3"
+              rows="3"
+              placeholder="Add an explanation for the recruiter..."
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+            />
+            <div className="d-flex justify-content-end gap-2">
+              <button className="btn btn-outline-secondary" onClick={closeRecruiterNoteModal}>
+                Cancel
+              </button>
+              <button
+                className={`btn ${recruiterNoteModal.action === 'approve' ? 'btn-success' : 'btn-danger'}`}
+                onClick={confirmRecruiterAction}
+                disabled={actionLoading === recruiterNoteModal.userId}
+              >
+                {actionLoading === recruiterNoteModal.userId
+                  ? 'Processing...'
+                  : recruiterNoteModal.action === 'approve'
                   ? 'Confirm Approve'
                   : 'Confirm Reject'}
               </button>

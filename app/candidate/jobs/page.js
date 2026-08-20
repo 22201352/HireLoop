@@ -1,20 +1,26 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 export default function BrowseJobsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedJobId = searchParams.get('jobId');
   const [user, setUser] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hasResume, setHasResume] = useState(null);
   const [appliedJobIds, setAppliedJobIds] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [applicationsLoaded, setApplicationsLoaded] = useState(false);
   const [applyingJobId, setApplyingJobId] = useState(null);
   const [modalJob, setModalJob] = useState(null);
   const [modalResult, setModalResult] = useState(null);
   const [modalError, setModalError] = useState('');
+  const [modalMode, setModalMode] = useState('apply');
+  const [cancellingJobId, setCancellingJobId] = useState(null);
 
   const [keyword, setKeyword] = useState('');
   const [employmentType, setEmploymentType] = useState('');
@@ -54,9 +60,14 @@ export default function BrowseJobsPage() {
     try {
       const res = await fetch(`/api/applications?candidateId=${candidateId}`);
       const data = await res.json();
-      setAppliedJobIds((data.applications || []).map((a) => a.jobId));
+      const activeApplications = (data.applications || [])
+          .filter((application) => application.status !== 'cancelled')
+      setApplications(activeApplications);
+      setAppliedJobIds(activeApplications.map((application) => application.jobId));
     } catch (err) {
       console.error(err);
+    } finally {
+      setApplicationsLoaded(true);
     }
   };
 
@@ -69,6 +80,7 @@ export default function BrowseJobsPage() {
       if (experienceLevel) params.set('experienceLevel', experienceLevel);
       if (skill) params.set('skill', skill);
       if (minSalary) params.set('minSalary', minSalary);
+      if (user?._id) params.set('candidateId', user._id);
       params.set('sortBy', sortBy);
 
       const res = await fetch(`/api/jobs/approved?${params.toString()}`);
@@ -79,11 +91,20 @@ export default function BrowseJobsPage() {
     } finally {
       setLoading(false);
     }
-  }, [keyword, employmentType, experienceLevel, skill, minSalary, sortBy]);
+  }, [keyword, employmentType, experienceLevel, skill, minSalary, sortBy, user]);
 
   useEffect(() => {
     if (user) fetchJobs();
   }, [user, fetchJobs]);
+
+  useEffect(() => {
+    if (!selectedJobId || loading || !applicationsLoaded || modalJob) return;
+
+    const selectedJob = jobs.find((job) => String(job._id) === String(selectedJobId));
+    if (selectedJob && !appliedJobIds.some((jobId) => String(jobId) === String(selectedJob._id))) {
+      openApplyModal(selectedJob);
+    }
+  }, [selectedJobId, jobs, loading, applicationsLoaded, appliedJobIds, modalJob]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -101,14 +122,49 @@ export default function BrowseJobsPage() {
 
   const openApplyModal = (job) => {
     setModalJob(job);
+    setModalMode(
+      appliedJobIds.some((jobId) => String(jobId) === String(job._id)) ? 'applied' : 'apply'
+    );
     setModalResult(null);
     setModalError('');
   };
 
   const closeModal = () => {
     setModalJob(null);
+    setModalMode('apply');
     setModalResult(null);
     setModalError('');
+  };
+
+  const cancelApplication = async () => {
+    const application = applications.find(
+      (item) => String(item.jobId) === String(modalJob?._id)
+    );
+    if (!application) return;
+
+    setCancellingJobId(modalJob._id);
+    setModalError('');
+    try {
+      const res = await fetch(`/api/applications/${application._id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidateId: user._id }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setModalError(data.error || 'Unable to cancel application');
+        return;
+      }
+
+      setApplications((prev) => prev.filter((item) => item._id !== application._id));
+      setAppliedJobIds((prev) => prev.filter((jobId) => String(jobId) !== String(modalJob._id)));
+      closeModal();
+    } catch (err) {
+      setModalError('Something went wrong. Try again.');
+    } finally {
+      setCancellingJobId(null);
+    }
   };
 
   const confirmApply = async () => {
@@ -283,7 +339,9 @@ export default function BrowseJobsPage() {
         ) : (
           <div className="row g-3">
             {jobs.map((job) => {
-              const alreadyApplied = appliedJobIds.includes(job._id);
+              const alreadyApplied = appliedJobIds.some(
+                (jobId) => String(jobId) === String(job._id)
+              );
               return (
                 <div className="col-md-6" key={job._id}>
                   <div className="card border-0 shadow-sm h-100" style={{ borderRadius: '14px' }}>
@@ -320,8 +378,8 @@ export default function BrowseJobsPage() {
                         )}
                       </div>
                       {alreadyApplied ? (
-                        <button className="btn btn-success w-100 mt-3" disabled>
-                          ✓ Applied
+                        <button className="btn btn-outline-danger w-100 mt-3" onClick={() => openApplyModal(job)}>
+                          Manage Application
                         </button>
                       ) : (
                         <button
@@ -346,10 +404,48 @@ export default function BrowseJobsPage() {
           className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
           style={{ background: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
         >
-          <div className="card shadow-lg p-4" style={{ maxWidth: '450px', width: '90%' }}>
+          <div className="card shadow-lg p-4" style={{ maxWidth: '500px', width: '90%' }}>
             {!modalResult ? (
               <>
-                <h5 className="fw-bold mb-3">Apply to {modalJob.title}</h5>
+                <h5 className="fw-bold mb-3">
+                  {modalMode === 'applied' ? 'Manage Application' : `Apply to ${modalJob.title}`}
+                </h5>
+
+                {modalMode === 'applied' ? (
+                  <>
+                    <p className="text-muted">You have already applied to this job.</p>
+                    <div className="alert alert-primary">
+                      <strong>Skill Match Score: {modalJob.skillMatchScore ?? 0}%</strong>
+                    </div>
+                    {applications.find(
+                      (application) => String(application.jobId) === String(modalJob._id)
+                    )?.status === 'shortlisted' && (
+                      <div className="alert alert-warning">
+                        <strong>Warning:</strong> You have been shortlisted. Cancelling will withdraw you from consideration and cancel any scheduled interview.
+                      </div>
+                    )}
+                    {modalError && <div className="alert alert-danger">{modalError}</div>}
+                    <div className="d-flex justify-content-end gap-2">
+                      <button className="btn btn-outline-secondary" onClick={closeModal}>
+                        Close
+                      </button>
+                      <button
+                        className="btn btn-outline-danger"
+                        onClick={cancelApplication}
+                        disabled={cancellingJobId === modalJob._id}
+                      >
+                        {cancellingJobId === modalJob._id ? 'Cancelling...' : 'Cancel Application'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                <>
+                {hasResume === true && (
+                  <div className="alert alert-primary">
+                    <strong>Skill Match Score: {modalJob.skillMatchScore ?? 0}%</strong>
+                    <div className="small mt-1">Based on the required skills found in your resume.</div>
+                  </div>
+                )}
 
                 {hasResume === false ? (
                   <>
@@ -368,7 +464,7 @@ export default function BrowseJobsPage() {
                 ) : (
                   <>
                     <p className="text-muted">
-                      Your resume on file will be used to calculate an AI match score for this position. Ready to submit your application?
+                      Your resume on file will be used to calculate your skill match score for this position. Ready to submit your application?
                     </p>
                     {modalError && <div className="alert alert-danger">{modalError}</div>}
                     <div className="d-flex justify-content-end gap-2">
@@ -384,6 +480,8 @@ export default function BrowseJobsPage() {
                       </button>
                     </div>
                   </>
+                )}
+                </>
                 )}
               </>
             ) : (

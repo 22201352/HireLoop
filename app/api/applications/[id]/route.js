@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { updateApplicationStatus } from "@/models/Application";
+import { cancelApplication, updateApplicationStatus } from "@/models/Application";
 import { sendStatusUpdateEmail } from "@/lib/email";
+import { deleteInterviewByApplicationId } from "@/models/Interview";
 import myDatabaseConnection from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
 
@@ -50,6 +51,39 @@ export async function PATCH(request, { params }) {
     );
   } catch (error) {
     console.error("Update status error:", error);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request, { params }) {
+  try {
+    const { candidateId } = await request.json();
+
+    if (!candidateId) {
+      return NextResponse.json({ error: "candidateId is required" }, { status: 400 });
+    }
+
+    const cancelledApplication = await cancelApplication(params.id, candidateId);
+
+    if (!cancelledApplication) {
+      return NextResponse.json(
+        { error: "Application cannot be cancelled" },
+        { status: 409 }
+      );
+    }
+
+    await deleteInterviewByApplicationId(params.id);
+
+    return NextResponse.json(
+      {
+        success: true,
+        applicationId: String(cancelledApplication._id),
+        status: cancelledApplication.status,
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Cancel application error:", error);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

@@ -43,6 +43,7 @@ export async function POST(request) {
       companyName: job.companyName,
       recruiterId: job.recruiterId,
       jobDescription: job.description,
+      jobSkills: job.skills,
       resumeText: resume.parsedText,
       resumeUrl: resume.fileUrl,
     });

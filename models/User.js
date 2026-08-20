@@ -56,6 +56,14 @@ export async function getRecruiters() {
     .toArray();
 }
 
+export async function findRecruiterById(userId) {
+  const users = await getCollection();
+  return users.findOne(
+    { _id: new ObjectId(userId), role: "recruiter" },
+    { projection: { password: 0 } }
+  );
+}
+
 export async function updateRecruiterApproval(userId, action) {
   const users = await getCollection();
 
