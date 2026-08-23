@@ -28,6 +28,9 @@ export async function POST(request) {
     if (error.message === "Email already registered") {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
+    if (error.message === "Registration blocked for a suspended account") {
+      return NextResponse.json({ error: "Registration is blocked for a suspended account" }, { status: 403 });
+    }
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }

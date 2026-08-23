@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import ComplaintModal from '@/components/ComplaintModal';
 
 export default function CandidateDashboard() {
   const router = useRouter();
@@ -375,12 +376,24 @@ export default function CandidateDashboard() {
                 ) : (
                   <ul className="list-group list-group-flush">
                     {applications.slice(0, 5).map((app) => (
-                      <li key={app._id} className="list-group-item d-flex justify-content-between align-items-center">
+                      <li key={app._id} className="list-group-item d-flex justify-content-between align-items-center gap-2">
                         <div>
                           <div className="fw-bold">{app.jobTitle}</div>
                           <small className="text-muted">{app.companyName}</small>
                         </div>
-                        <span className="badge bg-secondary text-capitalize">{app.status}</span>
+                        <div className="d-flex align-items-center gap-2">
+                          <span className="badge bg-secondary text-capitalize">{app.status}</span>
+                          <ComplaintModal
+                            currentUser={user}
+                            targetType="user"
+                            targetRole="recruiter"
+                            targetId={String(app.recruiterId || user._id)}
+                            targetName={app.companyName ? `${app.companyName} Recruiter` : 'Recruiter'}
+                            triggerLabel="Report Recruiter"
+                            compact
+                            buttonClassName="btn btn-light btn-sm border rounded-circle p-2 text-muted"
+                          />
+                        </div>
                       </li>
                     ))}
                   </ul>
@@ -398,8 +411,11 @@ export default function CandidateDashboard() {
 
             <div className="card shadow-sm mt-4">
               <div className="card-body text-center py-4">
-                <Link href="/candidate/resume" className="btn btn-outline-primary">
+                <Link href="/candidate/resume" className="btn btn-outline-primary me-2">
                   View / Update Resume
+                </Link>
+                <Link href="/candidate/complaints" className="btn btn-outline-secondary">
+                  My Complaints
                 </Link>
               </div>
             </div>

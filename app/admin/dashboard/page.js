@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function AdminDashboard() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [recruiters, setRecruiters] = useState([]);
   const [jobs, setJobs] = useState([]);
+  const [pendingComplaints, setPendingComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [activeTab, setActiveTab] = useState('recruiters');
@@ -35,7 +37,7 @@ export default function AdminDashboard() {
   }, [router]);
 
   const fetchAll = async () => {
-    await Promise.all([fetchRecruiters(), fetchJobs()]);
+    await Promise.all([fetchRecruiters(), fetchJobs(), fetchPendingComplaints()]);
     setLoading(false);
   };
 
@@ -54,6 +56,16 @@ export default function AdminDashboard() {
       const res = await fetch('/api/admin/jobs');
       const data = await res.json();
       setJobs(data.jobs || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchPendingComplaints = async () => {
+    try {
+      const res = await fetch('/api/complaints?status=pending');
+      const data = await res.json();
+      setPendingComplaints(data.complaints || []);
     } catch (err) {
       console.error(err);
     }
@@ -142,6 +154,10 @@ export default function AdminDashboard() {
         <span className="navbar-brand fw-bold">HireLoop Admin</span>
         <div className="ms-auto d-flex align-items-center gap-3">
           <span className="text-white">Hi, {user.name}</span>
+          <Link href="/admin/complaints" className="btn btn-outline-light btn-sm position-relative">
+            Complaints
+            {pendingComplaints.length > 0 && <span className="badge bg-danger ms-2">{pendingComplaints.length}</span>}
+          </Link>
           <button className="btn btn-outline-light btn-sm" onClick={handleLogout}>
             Logout
           </button>
@@ -150,6 +166,13 @@ export default function AdminDashboard() {
 
       <div className="container py-4">
         <h3 className="fw-bold mb-4">Admin Dashboard</h3>
+
+        {pendingComplaints.length > 0 && (
+          <div className="alert alert-warning d-flex justify-content-between align-items-center gap-3" role="alert">
+            <span><strong>Attention:</strong> {pendingComplaints.length} complaint{pendingComplaints.length === 1 ? '' : 's'} need review.</span>
+            <Link href="/admin/complaints?status=pending" className="btn btn-sm btn-warning">Review complaints</Link>
+          </div>
+        )}
 
         <div className="row g-3 mb-4">
           <div className="col-md-3">

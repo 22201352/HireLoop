@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import ComplaintModal from '@/components/ComplaintModal';
 
 export default function BrowseJobsPage() {
   const router = useRouter();
@@ -36,13 +37,17 @@ export default function BrowseJobsPage() {
       return;
     }
     const parsedUser = JSON.parse(storedUser);
-    if (parsedUser.role !== 'candidate') {
+    if (!['candidate', 'recruiter'].includes(parsedUser.role)) {
       router.push('/login');
       return;
     }
     setUser(parsedUser);
-    checkResume(parsedUser._id);
-    fetchApplications(parsedUser._id);
+    if (parsedUser.role === 'candidate') {
+      checkResume(parsedUser._id);
+      fetchApplications(parsedUser._id);
+    } else {
+      setApplicationsLoaded(true);
+    }
   }, [router]);
 
   const checkResume = async (candidateId) => {
@@ -98,13 +103,13 @@ export default function BrowseJobsPage() {
   }, [user, fetchJobs]);
 
   useEffect(() => {
-    if (!selectedJobId || loading || !applicationsLoaded || modalJob) return;
+    if (user?.role !== 'candidate' || !selectedJobId || loading || !applicationsLoaded || modalJob) return;
 
     const selectedJob = jobs.find((job) => String(job._id) === String(selectedJobId));
     if (selectedJob && !appliedJobIds.some((jobId) => String(jobId) === String(selectedJob._id))) {
       openApplyModal(selectedJob);
     }
-  }, [selectedJobId, jobs, loading, applicationsLoaded, appliedJobIds, modalJob]);
+  }, [selectedJobId, jobs, loading, applicationsLoaded, appliedJobIds, modalJob, user]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -211,10 +216,8 @@ export default function BrowseJobsPage() {
       <nav className="navbar navbar-expand-lg navbar-dark bg-primary px-4 shadow-sm">
         <span className="navbar-brand fw-bold">HireLoop</span>
         <div className="ms-auto d-flex align-items-center gap-3">
-          <Link href="/candidate/resume" className="btn btn-outline-light btn-sm">
-            My Resume
-          </Link>
-          <Link href="/candidate/dashboard" className="btn btn-outline-light btn-sm">
+          {user.role === 'candidate' && <Link href="/candidate/resume" className="btn btn-outline-light btn-sm">My Resume</Link>}
+          <Link href={user.role === 'candidate' ? '/candidate/dashboard' : '/recruiter/dashboard'} className="btn btn-outline-light btn-sm">
             ← Dashboard
           </Link>
         </div>
@@ -223,7 +226,7 @@ export default function BrowseJobsPage() {
       <div className="container py-4">
         <h3 className="fw-bold mb-4">Browse Jobs</h3>
 
-        {hasResume === false && (
+        {user.role === 'candidate' && hasResume === false && (
           <div className="alert alert-warning shadow-sm d-flex justify-content-between align-items-center mb-4">
             <span>You haven&apos;t uploaded a resume yet. You&apos;ll need one before applying.</span>
             <Link href="/candidate/resume" className="btn btn-dark btn-sm">
@@ -348,9 +351,25 @@ export default function BrowseJobsPage() {
                     <div className="card-body p-4">
                       <div className="d-flex justify-content-between align-items-start mb-2">
                         <h5 className="fw-bold mb-0">{job.title}</h5>
-                        <span className="badge bg-primary-subtle text-primary border">
-                          {job.employmentType}
-                        </span>
+                        <div className="d-flex align-items-center gap-2">
+                          <span className="badge bg-primary-subtle text-primary border">
+                            {job.employmentType}
+                          </span>
+                          <ComplaintModal
+                            currentUser={user}
+                            targetOptions={user.role === 'recruiter' ? [
+                              { type: 'job', role: 'job', id: String(job._id), name: job.title, label: 'Job Listing' },
+                              { type: 'user', role: 'recruiter', id: String(job.recruiterId || ''), name: job.recruiterName || `${job.companyName || 'Company'} Recruiter`, label: 'Recruiter' },
+                              { type: 'user', role: 'candidate', id: '', name: '', label: 'Candidate' },
+                            ] : job.recruiterId ? [
+                              { type: 'job', role: 'job', id: String(job._id), name: job.title, label: 'Job' },
+                              { type: 'user', role: 'recruiter', id: String(job.recruiterId), name: job.recruiterName || `${job.companyName || 'Company'} Recruiter`, label: 'Recruiter' },
+                            ] : [{ type: 'job', role: 'job', id: String(job._id), name: job.title, label: 'Job' }]}
+                            triggerLabel="Report"
+                            compact
+                            buttonClassName="btn btn-light btn-sm border rounded-circle p-2 text-muted"
+                          />
+                        </div>
                       </div>
                       <p className="text-muted mb-2">
                         {job.companyName} • {job.experienceLevel}
@@ -377,18 +396,17 @@ export default function BrowseJobsPage() {
                           </span>
                         )}
                       </div>
-                      {alreadyApplied ? (
-                        <button className="btn btn-outline-danger w-100 mt-3" onClick={() => openApplyModal(job)}>
-                          Manage Application
-                        </button>
-                      ) : (
-                        <button
-                          className="btn btn-primary w-100 mt-3"
-                          onClick={() => openApplyModal(job)}
-                        >
-                          Apply Now
-                        </button>
-                      )}
+                      {user.role === 'candidate' && <div className="d-grid mt-3">
+                        {alreadyApplied ? (
+                          <button className="btn btn-outline-danger w-100" onClick={() => openApplyModal(job)}>
+                            Manage Application
+                          </button>
+                        ) : (
+                          <button className="btn btn-primary w-100" onClick={() => openApplyModal(job)}>
+                            Apply Now
+                          </button>
+                        )}
+                      </div>}
                     </div>
                   </div>
                 </div>
@@ -399,7 +417,7 @@ export default function BrowseJobsPage() {
       </div>
 
       {/* Apply Modal */}
-      {modalJob && (
+      {user.role === 'candidate' && modalJob && (
         <div
           className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center"
           style={{ background: 'rgba(0,0,0,0.5)', zIndex: 1050 }}

@@ -1,11 +1,26 @@
 import { NextResponse } from "next/server";
-import { getAllJobsForAdmin, reviewJob } from "@/models/Job";
+import { getAllJobsForAdmin, getJobById, reviewJob } from "@/models/Job";
+import { findRecruiterById } from "@/models/User";
 
 // Get all jobs (for admin review)
-export async function GET() {
+export async function GET(request) {
   try {
-    const jobs = await getAllJobsForAdmin();
-    return NextResponse.json({ success: true, jobs }, { status: 200 });
+    const { searchParams } = new URL(request.url);
+    const jobId = searchParams.get("jobId");
+    const jobs = jobId ? await getJobById(jobId) : await getAllJobsForAdmin();
+
+    if (jobId && !jobs) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    const recruiter = jobId ? await findRecruiterById(jobs.recruiterId) : undefined;
+
+    return NextResponse.json({
+      success: true,
+      job: jobId ? jobs : undefined,
+      recruiter,
+      jobs: jobId ? undefined : jobs,
+    }, { status: 200 });
   } catch (error) {
     console.error("Fetch jobs error:", error);
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });

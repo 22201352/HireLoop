@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import ComplaintModal from '@/components/ComplaintModal';
 
 const STATUS_OPTIONS = ['pending', 'reviewed', 'shortlisted', 'rejected'];
 
@@ -69,8 +70,6 @@ export default function JobApplicants() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
-
-      const data = await res.json();
 
       if (res.ok) {
         setApplicants((prev) =>
@@ -187,7 +186,19 @@ export default function JobApplicants() {
                   <tbody>
                     {applicants.map((app) => (
                       <tr key={app._id}>
-                        <td>{app.candidateName}</td>
+                        <td>
+                          <div>{app.candidateName}</div>
+                          <ComplaintModal
+                            currentUser={user}
+                            targetType="user"
+                            targetRole="candidate"
+                            targetId={String(app.candidateId)}
+                            targetName={app.candidateName}
+                            triggerLabel="Report Candidate"
+                            compact
+                            buttonClassName="btn btn-sm btn-outline-danger mt-2"
+                          />
+                        </td>
                         <td className="small">{app.candidateEmail || 'N/A'}</td>
                         <td>{app.aiScore}</td>
                         <td>

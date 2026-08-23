@@ -188,7 +188,7 @@ export async function cancelApplication(applicationId, candidateId) {
   if (!application) return null;
 
   if (application.status === "shortlisted") {
-    return applications.findOneAndUpdate(
+    const result = await applications.findOneAndUpdate(
       { _id: application._id },
       {
         $set: {
@@ -199,7 +199,9 @@ export async function cancelApplication(applicationId, candidateId) {
       },
       { returnDocument: "after" }
     );
+    return result?.value ?? result;
   }
 
-  return applications.findOneAndDelete({ _id: application._id });
+  const result = await applications.findOneAndDelete({ _id: application._id });
+  return result?.value ?? result;
 }

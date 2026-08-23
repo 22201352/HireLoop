@@ -58,6 +58,13 @@ export async function getAllJobsForAdmin() {
   return jobs.find({}).sort({ createdAt: -1 }).toArray();
 }
 
+export async function getJobById(jobId) {
+  if (!jobId || !ObjectId.isValid(jobId)) return null;
+
+  const jobs = await getCollection();
+  return jobs.findOne({ _id: new ObjectId(jobId) });
+}
+
 export async function reviewJob(jobId, action, note) {
   const jobs = await getCollection();
   const newStatus = action === "approve" ? "approved" : "rejected";

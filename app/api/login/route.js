@@ -28,6 +28,13 @@ export async function POST(request) {
       );
     }
 
+    if (user.isSuspended) {
+      return NextResponse.json(
+        { error: "This account has been suspended" },
+        { status: 403 }
+      );
+    }
+
     const { password: _, ...safeUser } = user;
 
     return NextResponse.json(

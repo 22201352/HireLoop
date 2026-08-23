@@ -127,7 +127,11 @@ export default function RecruiterDashboard() {
         <div className="card shadow-sm">
           <div className="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
             <span>My Job Postings</span>
-            <Link href="/recruiter/post-job" className="btn btn-primary btn-sm">+ Post New Job</Link>
+              <div className="d-flex gap-2">
+                <Link href="/candidate/jobs" className="btn btn-outline-primary btn-sm">Browse Jobs</Link>
+                <Link href="/recruiter/complaints" className="btn btn-outline-secondary btn-sm">Complaint History</Link>
+                <Link href="/recruiter/post-job" className="btn btn-primary btn-sm">+ Post New Job</Link>
+              </div>
           </div>
           <div className="card-body">
             {loading ? (
