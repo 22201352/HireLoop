@@ -205,3 +205,57 @@ export async function cancelApplication(applicationId, candidateId) {
   const result = await applications.findOneAndDelete({ _id: application._id });
   return result?.value ?? result;
 }
+
+export async function getRecruiterApplicationStats(recruiterId) {
+  const applications = await getCollection();
+
+  const results = await applications.aggregate([
+    {
+      $match: {
+        recruiterId,
+        $or: [
+          { status: { $ne: "cancelled" } },
+          { cancellationAfterApproval: true },
+        ],
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        totalApplicants: { $sum: 1 },
+        shortlisted: {
+          $sum: { $cond: [{ $eq: ["$status", "shortlisted"] }, 1, 0] },
+        },
+      },
+    },
+  ]).toArray();
+
+  return results[0]
+    ? { totalApplicants: results[0].totalApplicants, shortlisted: results[0].shortlisted }
+    : { totalApplicants: 0, shortlisted: 0 };
+}
+
+export async function getAdminApplicationStats() {
+  const applications = await getCollection();
+
+  const results = await applications.aggregate([
+    {
+      $group: {
+        _id: null,
+        totalProcessed: { $sum: 1 },
+        aiScored: {
+          $sum: { $cond: [{ $ifNull: ["$aiScore", false] }, 1, 0] },
+        },
+        avgAiScore: { $avg: "$aiScore" },
+      },
+    },
+  ]).toArray();
+
+  return results[0]
+    ? {
+        totalProcessed: results[0].totalProcessed,
+        aiScored: results[0].aiScored,
+        avgAiScore: Math.round(results[0].avgAiScore || 0),
+      }
+    : { totalProcessed: 0, aiScored: 0, avgAiScore: 0 };
+}

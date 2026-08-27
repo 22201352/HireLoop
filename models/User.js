@@ -226,3 +226,44 @@ export async function updateRecruiterApproval(userId, action) {
     throw new Error("Invalid action");
   }
 }
+export async function updateRecruiterProfile(userId, updates) {
+  if (!userId || !ObjectId.isValid(userId)) return null;
+
+  const users = await getCollection();
+
+  const allowedFields = [
+    "name", "phone", "designation", "businessEmail",
+    "companyName", "industry", "website", "description",
+  ];
+  const setFields = { updatedAt: new Date() };
+  for (const field of allowedFields) {
+    if (updates[field] !== undefined) setFields[field] = updates[field];
+  }
+
+  const result = await users.findOneAndUpdate(
+    { _id: new ObjectId(userId), role: "recruiter" },
+    { $set: setFields },
+    { returnDocument: "after", projection: { password: 0 } }
+  );
+  return result.value ?? result;
+}
+export async function getAllUsersForAdmin() {
+  const users = await getCollection();
+  return users
+    .find({}, { projection: { password: 0 } })
+    .sort({ createdAt: -1 })
+    .toArray();
+}
+
+export async function getAdminUserStats() {
+  const users = await getCollection();
+  const results = await users.aggregate([
+    { $group: { _id: "$role", count: { $sum: 1 } } },
+  ]).toArray();
+
+  const stats = { candidate: 0, recruiter: 0, admin: 0 };
+  results.forEach((r) => {
+    if (r._id) stats[r._id] = r.count;
+  });
+  return stats;
+}

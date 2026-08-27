@@ -153,3 +153,28 @@ export async function getRecommendedJobs(resumeText, limit = 10) {
     .sort((a, b) => b.matchCount - a.matchCount)
     .slice(0, limit);
 }
+export async function removeJob(jobId, note) {
+  const jobs = await getCollection();
+  await jobs.updateOne(
+    { _id: new ObjectId(jobId) },
+    {
+      $set: {
+        status: "removed",
+        adminNote: note || "",
+        removedAt: new Date(),
+      },
+    }
+  );
+}
+export async function getAdminJobStats() {
+  const jobs = await getCollection();
+  const results = await jobs.aggregate([
+    { $group: { _id: "$status", count: { $sum: 1 } } },
+  ]).toArray();
+
+  const stats = { pending: 0, approved: 0, rejected: 0, removed: 0 };
+  results.forEach((r) => {
+    if (r._id) stats[r._id] = r.count;
+  });
+  return stats;
+}

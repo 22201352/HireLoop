@@ -76,3 +76,7 @@ export async function confirmInterviewSlot(interviewId, selectedSlot) {
 
   return result;
 }
+export async function getInterviewsByRecruiterId(recruiterId) {
+  const interviews = await getCollection();
+  return interviews.find({ recruiterId }).sort({ createdAt: -1 }).toArray();
+}
