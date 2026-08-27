@@ -158,11 +158,13 @@ export default function CandidateDashboard() {
 
   const totalApplications = applications.length;
   const pendingCount = applications.filter(app => app.status === 'pending').length;
+  const reviewedCount = applications.filter(app => app.status === 'reviewed').length;
   const shortlistedCount = applications.filter(app => app.status === 'shortlisted').length;
   const rejectedCount = applications.filter(app => app.status === 'rejected').length;
 
   const chartData = [
     { name: 'Pending', value: pendingCount, color: '#ffc107' },
+    { name: 'Reviewed', value: reviewedCount, color: '#0dcaf0' },
     { name: 'Shortlisted', value: shortlistedCount, color: '#198754' },
     { name: 'Rejected', value: rejectedCount, color: '#dc3545' },
   ].filter(item => item.value > 0);
@@ -290,26 +292,32 @@ export default function CandidateDashboard() {
           <p className="text-muted text-center py-5">Loading your applications...</p>
         ) : (
           <>
-            <div className="row g-3 mb-4">
-              <div className="col-md-3">
+            <div className="row g-3 mb-4 row-cols-2 row-cols-md-5">
+              <div className="col">
                 <div className="card shadow-sm text-center p-3">
                   <h2 className="fw-bold text-primary mb-0">{totalApplications}</h2>
                   <p className="text-muted mb-0">Total Applications</p>
                 </div>
               </div>
-              <div className="col-md-3">
+              <div className="col">
                 <div className="card shadow-sm text-center p-3">
                   <h2 className="fw-bold text-warning mb-0">{pendingCount}</h2>
                   <p className="text-muted mb-0">Pending</p>
                 </div>
               </div>
-              <div className="col-md-3">
+              <div className="col">
+                <div className="card shadow-sm text-center p-3">
+                  <h2 className="fw-bold text-info mb-0">{reviewedCount}</h2>
+                  <p className="text-muted mb-0">Reviewed</p>
+                </div>
+              </div>
+              <div className="col">
                 <div className="card shadow-sm text-center p-3">
                   <h2 className="fw-bold text-success mb-0">{shortlistedCount}</h2>
                   <p className="text-muted mb-0">Shortlisted</p>
                 </div>
               </div>
-              <div className="col-md-3">
+              <div className="col">
                 <div className="card shadow-sm text-center p-3">
                   <h2 className="fw-bold text-danger mb-0">{rejectedCount}</h2>
                   <p className="text-muted mb-0">Rejected</p>
@@ -382,6 +390,11 @@ export default function CandidateDashboard() {
                           <small className="text-muted">{app.companyName}</small>
                         </div>
                         <div className="d-flex align-items-center gap-2">
+                          {typeof app.aiScore === 'number' && (
+                            <span className="badge bg-primary-subtle text-primary border">
+                              {app.aiScore}% match
+                            </span>
+                          )}
                           <span className="badge bg-secondary text-capitalize">{app.status}</span>
                           <ComplaintModal
                             currentUser={user}

@@ -10,6 +10,7 @@ export default function RecruiterDashboard() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toggleLoading, setToggleLoading] = useState(null);
+  const [stats, setStats] = useState({ totalApplicants: 0, shortlisted: 0 });
 
   useEffect(() => {
     const storedUser = localStorage.getItem('hireloop_user');
@@ -28,6 +29,7 @@ export default function RecruiterDashboard() {
 
     setUser(parsedUser);
     fetchJobs(parsedUser._id);
+    fetchStats(parsedUser._id);
   }, [router]);
 
   const fetchJobs = async (recruiterId) => {
@@ -39,6 +41,16 @@ export default function RecruiterDashboard() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStats = async (recruiterId) => {
+    try {
+      const res = await fetch(`/api/recruiter/dashboard?recruiterId=${recruiterId}`);
+      const data = await res.json();
+      if (data.stats) setStats(data.stats);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -106,13 +118,13 @@ export default function RecruiterDashboard() {
           </div>
           <div className="col-md-3">
             <div className="card shadow-sm text-center p-3">
-              <h2 className="fw-bold text-info mb-0">0</h2>
+              <h2 className="fw-bold text-info mb-0">{stats.totalApplicants}</h2>
               <p className="text-muted mb-0">Total Applicants</p>
             </div>
           </div>
           <div className="col-md-3">
             <div className="card shadow-sm text-center p-3">
-              <h2 className="fw-bold text-success mb-0">0</h2>
+              <h2 className="fw-bold text-success mb-0">{stats.shortlisted}</h2>
               <p className="text-muted mb-0">Shortlisted</p>
             </div>
           </div>

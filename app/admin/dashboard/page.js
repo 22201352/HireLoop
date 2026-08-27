@@ -16,6 +16,8 @@ export default function AdminDashboard() {
   const [noteModal, setNoteModal] = useState(null);
   const [noteText, setNoteText] = useState('');
   const [recruiterNoteModal, setRecruiterNoteModal] = useState(null);
+  const [allUsers, setAllUsers] = useState([]);
+  const [stats, setStats] = useState(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('hireloop_user');
@@ -37,7 +39,7 @@ export default function AdminDashboard() {
   }, [router]);
 
   const fetchAll = async () => {
-    await Promise.all([fetchRecruiters(), fetchJobs(), fetchPendingComplaints()]);
+    await Promise.all([fetchRecruiters(), fetchJobs(), fetchPendingComplaints(), fetchAllUsers(), fetchStats()]);
     setLoading(false);
   };
 
@@ -66,6 +68,28 @@ export default function AdminDashboard() {
       const res = await fetch('/api/complaints?status=pending');
       const data = await res.json();
       setPendingComplaints(data.complaints || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchAllUsers = async () => {
+    try {
+      const res = await fetch('/api/admin/users');
+      const data = await res.json();
+      setAllUsers(data.users || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch('/api/admin/stats');
+      const data = await res.json();
+      if (data.success) {
+        setStats({ users: data.users, jobs: data.jobs, applications: data.applications });
+      }
     } catch (err) {
       console.error(err);
     }
@@ -123,6 +147,42 @@ export default function AdminDashboard() {
       });
       await fetchJobs();
       closeNoteModal();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeactivateUser = async (userId) => {
+    const confirmed = window.confirm('Deactivate this account? This cannot be undone by the user themselves.');
+    if (!confirmed) return;
+
+    setActionLoading(userId);
+    try {
+      await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      await fetchAllUsers();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRemoveJob = async (jobId) => {
+    const note = window.prompt('Reason for removing this listing (optional):') || '';
+    setActionLoading(jobId);
+    try {
+      await fetch('/api/admin/jobs', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId, note }),
+      });
+      await fetchJobs();
     } catch (err) {
       console.error(err);
     } finally {
@@ -201,6 +261,35 @@ export default function AdminDashboard() {
           </div>
         </div>
 
+        {stats && (
+          <div className="row g-3 mb-4">
+            <div className="col-md-3">
+              <div className="card shadow-sm text-center p-3">
+                <h2 className="fw-bold text-primary mb-0">{stats.users.candidate}</h2>
+                <p className="text-muted mb-0">Candidates</p>
+              </div>
+            </div>
+            <div className="col-md-3">
+              <div className="card shadow-sm text-center p-3">
+                <h2 className="fw-bold text-primary mb-0">{stats.users.recruiter}</h2>
+                <p className="text-muted mb-0">Recruiters (total)</p>
+              </div>
+            </div>
+            <div className="col-md-3">
+              <div className="card shadow-sm text-center p-3">
+                <h2 className="fw-bold text-info mb-0">{stats.applications.totalProcessed}</h2>
+                <p className="text-muted mb-0">Applications Processed</p>
+              </div>
+            </div>
+            <div className="col-md-3">
+              <div className="card shadow-sm text-center p-3">
+                <h2 className="fw-bold text-info mb-0">{stats.applications.aiScored}</h2>
+                <p className="text-muted mb-0">AI Scored ({stats.applications.avgAiScore}% avg)</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <ul className="nav nav-tabs mb-3">
           <li className="nav-item">
             <button
@@ -222,6 +311,14 @@ export default function AdminDashboard() {
               {pendingJobs.length > 0 && (
                 <span className="badge bg-danger ms-2">{pendingJobs.length}</span>
               )}
+            </button>
+          </li>
+          <li className="nav-item">
+            <button
+              className={`nav-link ${activeTab === 'users' ? 'active fw-semibold' : ''}`}
+              onClick={() => setActiveTab('users')}
+            >
+              Manage Users
             </button>
           </li>
         </ul>
@@ -325,6 +422,76 @@ export default function AdminDashboard() {
                     </p>
                   </div>
                 ))
+              )}
+            </div>
+            <div className="card-header bg-white fw-bold border-top">Approved Listings</div>
+            <div className="card-body">
+              {approvedJobs.length === 0 ? (
+                <p className="text-muted text-center py-3">No approved listings.</p>
+              ) : (
+                approvedJobs.map((job) => (
+                  <div key={job._id} className="border rounded p-3 mb-3 d-flex justify-content-between align-items-center">
+                    <div>
+                      <h6 className="fw-bold mb-0">{job.title}</h6>
+                      <small className="text-muted">{job.companyName}</small>
+                    </div>
+                    <button
+                      className="btn btn-outline-danger btn-sm"
+                      disabled={actionLoading === job._id}
+                      onClick={() => handleRemoveJob(job._id)}
+                    >
+                      {actionLoading === job._id ? 'Processing...' : 'Remove Listing'}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'users' && (
+          <div className="card shadow-sm">
+            <div className="card-header bg-white fw-bold">All Users</div>
+            <div className="card-body">
+              {allUsers.length === 0 ? (
+                <p className="text-muted text-center py-3">No users found.</p>
+              ) : (
+                <table className="table align-middle">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Role</th>
+                      <th>Email</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allUsers.map((u) => (
+                      <tr key={u._id}>
+                        <td>{u.name}</td>
+                        <td className="text-capitalize">{u.role}</td>
+                        <td>{u.email}</td>
+                        <td>
+                          {u.isSuspended ? (
+                            <span className="badge bg-danger">Suspended</span>
+                          ) : (
+                            <span className="badge bg-success">Active</span>
+                          )}
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-outline-danger btn-sm"
+                            disabled={u.isSuspended || actionLoading === u._id || u.role === 'admin'}
+                            onClick={() => handleDeactivateUser(u._id)}
+                          >
+                            {actionLoading === u._id ? 'Processing...' : 'Deactivate'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
             </div>
           </div>

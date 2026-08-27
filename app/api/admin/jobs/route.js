@@ -44,3 +44,21 @@ export async function POST(request) {
     return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
   }
 }
+import { removeJob } from "@/models/Job";
+
+export async function DELETE(request) {
+  try {
+    const { jobId, note } = await request.json();
+
+    if (!jobId) {
+      return NextResponse.json({ error: "Missing jobId" }, { status: 400 });
+    }
+
+    await removeJob(jobId, note);
+
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (error) {
+    console.error("Job removal error:", error);
+    return NextResponse.json({ error: "Something went wrong" }, { status: 500 });
+  }
+}
