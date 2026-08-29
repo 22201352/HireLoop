@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getApplicationsByJobId, updateApplicationSkillScore } from "@/models/Application";
+import { getApplicationsByJobId } from "@/models/Application";
 import { getInterviewByApplicationId } from "@/models/Interview";
 import myDatabaseConnection from "@/lib/mongodb";
 import { ObjectId } from "mongodb";
@@ -12,27 +12,11 @@ export async function GET(request, { params }) {
 
     const client = await myDatabaseConnection;
     const db = client.db("hireloop");
-    const job = await db.collection("jobs").findOne({ _id: new ObjectId(id) });
 
     const enrichedApplications = await Promise.all(
       applications.map(async (app) => {
         let candidateEmail = null;
         let interview = null;
-
-        try {
-          const resume = await db.collection("resumes").findOne({ candidateId: app.candidateId });
-          const updatedApplication = await updateApplicationSkillScore(
-            app._id,
-            job?.skills,
-            resume?.parsedText
-          );
-
-          if (updatedApplication) {
-            app = updatedApplication;
-          }
-        } catch (scoreError) {
-          console.error("Failed to refresh application score:", scoreError);
-        }
 
         try {
           const candidate = await db.collection("users").findOne({

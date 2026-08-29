@@ -47,8 +47,11 @@ Return ONLY a valid JSON object with this exact format, no other text:
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
 
+    const aiScore = Number(parsed.score);
+    const isValidScore = Number.isFinite(aiScore) && aiScore >= 0 && aiScore <= 100;
+
     return {
-      score: skillMatchScore,
+      score: isValidScore ? Math.round(aiScore) : skillMatchScore,
       justification: parsed.justification || "No justification provided.",
     };
   } catch (error) {
