@@ -47,11 +47,15 @@ Return ONLY a valid JSON object with this exact format, no other text:
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
 
-    const aiScore = Number(parsed.score);
-    const isValidScore = Number.isFinite(aiScore) && aiScore >= 0 && aiScore <= 100;
+    // Use Groq's own score, but validate it — LLM output isn't guaranteed
+    // to be a clean 0-100 number. Fall back to the keyword-match score
+    // if it's missing or out of range.
+    const rawScore = Number(parsed.score);
+    const isValidScore = Number.isFinite(rawScore) && rawScore >= 0 && rawScore <= 100;
+    const score = isValidScore ? Math.round(rawScore) : skillMatchScore;
 
     return {
-      score: isValidScore ? Math.round(aiScore) : skillMatchScore,
+      score,
       justification: parsed.justification || "No justification provided.",
     };
   } catch (error) {
