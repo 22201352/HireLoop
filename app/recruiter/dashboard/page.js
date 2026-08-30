@@ -142,6 +142,7 @@ export default function RecruiterDashboard() {
               <div className="d-flex gap-2">
                 <Link href="/candidate/jobs" className="btn btn-outline-primary btn-sm">Browse Jobs</Link>
                 <Link href="/recruiter/complaints" className="btn btn-outline-secondary btn-sm">Complaint History</Link>
+                <Link href="/recruiter/profile" className="btn btn-outline-secondary btn-sm">Profile</Link>
                 <Link href="/recruiter/post-job" className="btn btn-primary btn-sm">+ Post New Job</Link>
               </div>
           </div>
